@@ -98,14 +98,56 @@ def declare_operators(data):
 	pyhop.declare_operators(*operator_list)
 
 def add_heuristic(data, ID):
-	def heuristic(state, curr_task, tasks, plan, depth, calling_stack):
-		return False
-	pyhop.add_check(heuristic)
+    def heuristic(state, curr_task, tasks, plan, depth, calling_stack):
+        # Prune if time is exceeded
+        if state.time[ID] < 0:
+            return True
+        
+        task_name = curr_task[0]
+        
+        # Cycle Prevention: Strict pruning for production tasks
+        if task_name.startswith('produce_'):
+            if calling_stack.count(curr_task) > 1:
+                return True
+        
+        # Accumulation Permission: Relaxed limit for 'have_enough'
+        elif calling_stack.count(curr_task) > 50:
+            return True
+            
+        return False
+    pyhop.add_check(heuristic)
 
 def define_ordering(data, ID):
-	def reorder_methods(state, curr_task, tasks, plan, depth, calling_stack, methods):
-		return methods
-	pyhop.define_ordering(reorder_methods)
+    def reorder_methods(state, curr_task, tasks, plan, depth, calling_stack, methods):
+        if not methods or len(methods) <= 1:
+            return methods
+        
+        valid_methods = []
+        infinite_methods = []
+
+        for method in methods:
+            subtasks = pyhop.get_subtasks(method, state, curr_task)
+
+            # Keep failed subtasks in the valid list to let Pyhop handle the failure naturally
+            if subtasks is False:
+                valid_methods.append(method)
+                continue
+
+            is_infinite = False
+            for subtask in subtasks:
+                if subtask in calling_stack:
+                    is_infinite = True
+                    break
+            
+            # Separate the methods
+            if not is_infinite:
+                valid_methods.append(method)
+            else:
+                infinite_methods.append(method)
+                
+        # Return valid first, infinite last
+        return valid_methods + infinite_methods
+    pyhop.define_ordering(reorder_methods)
 
 def set_up_state(data, ID):
 	state = pyhop.State('state')
