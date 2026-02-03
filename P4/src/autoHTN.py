@@ -144,9 +144,30 @@ def define_ordering(data, ID):
                 valid_methods.append(method)
             else:
                 infinite_methods.append(method)
+
+			# Step 2: Prioritize "Ready" Methods (Tools/Ingredients available)
+        ready_methods = []
+        not_ready_methods = []
+
+        for method in valid_methods:
+            subtasks = pyhop.get_subtasks(method, state, curr_task)
+            is_ready = True
+            for subtask in subtasks:
+                # Check if we satisfy the 'have_enough' requirements immediately
+                if subtask[0] == 'have_enough':
+                    item_name = subtask[2]
+                    req_num = subtask[3]
+                    if getattr(state, item_name)[ID] < req_num:
+                        is_ready = False
+                        break
+            
+            if is_ready:
+                ready_methods.append(method)
+            else:
+                not_ready_methods.append(method)
                 
-        # Return valid first, infinite last
-        return valid_methods + infinite_methods
+        # Return ready methods first, then not-ready methods, then infinite methods
+        return ready_methods + not_ready_methods + infinite_methods
     pyhop.define_ordering(reorder_methods)
 
 def set_up_state(data, ID):
